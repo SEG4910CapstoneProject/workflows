@@ -1,0 +1,56 @@
+name: Run Tests
+
+on:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: read
+  checks: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"  
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt 
+      
+      - name: Run unit tests with coverage
+        run: |
+          coverage run -m unittest discover
+          coverage report -m > coverage_report.txt
+
+      - name: Extract coverage summary
+        id: extract_summary
+        run: |
+          coverage_output=$(cat coverage_report.txt)
+          covered_coverage=$(echo "$coverage_output" | grep "TOTAL" | awk '{print $4}')
+          total_missed_lines=$(echo "$coverage_output" | grep "TOTAL" | awk '{print $3}')
+          echo "::set-output name=covered_coverage::$covered_coverage"
+          echo "::set-output name=total_missed_lines::$total_missed_lines"
+
+      - name: Display Coverage Summary
+        run: |
+          covered_coverage=${{ steps.extract_summary.outputs.covered_coverage }}
+          total_missed_lines=${{ steps.extract_summary.outputs.total_missed_lines }}
+          echo "Coverage Summary:" >> $GITHUB_STEP_SUMMARY
+          echo "Code Coverage: $covered_coverage" >> $GITHUB_STEP_SUMMARY
+          echo "Total Missed Lines: $total_missed_lines" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Code Coverage Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: coverage_report.txt
